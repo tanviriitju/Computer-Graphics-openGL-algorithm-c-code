@@ -1,0 +1,179 @@
+#include <windows.h>
+#include<GL/glut.h>
+#include<math.h>
+#include<stdio.h>
+#include<iostream>
+#define SCREEN_WIDTH 600
+#define SCREEN_HEIGHT 400
+
+typedef struct {
+GLfloat x, y;
+} Point;
+//creating bitmap from texture
+const GLint WIN_LEFT_BIT = 0x01;
+const GLint WIN_RIGHT_BIT = 0x02;
+const GLint WIN_BOTTOM_BIT = 0x04;
+const GLint WIN_TOP_BIT = 0x08;
+
+Point win1,win2,line1,line2;
+//Creating window
+void init_graph(int argc, char **argv) {
+glutInit(&argc, argv);
+glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB);
+glutInitWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+glutCreateWindow(argv[0]);
+
+glClearColor(2.0, 1.5, 1.0, 0.0);
+glPointSize(1.0f);
+glMatrixMode(GL_PROJECTION);
+glLoadIdentity();
+gluOrtho2D(0, SCREEN_WIDTH, 0, SCREEN_HEIGHT);
+}
+//closing the window function
+void close_graph() {
+glutMainLoop();
+}
+//plotting the points
+void swap_points(Point *p1, Point *p2) {
+Point t = *p1;
+*p1 = *p2;
+*p2 = t;
+}
+
+void swap_codes(GLint *x, GLint *y) {
+GLint t = *x;
+*x = *y;
+*y = t;
+}
+//accept the point for clipping if it’s needed to , otherwise not
+GLint inside(GLint code) {
+return !code;
+
+}
+//
+GLint accept(GLint code1, GLint code2) {
+return !(code1 | code2);
+}
+
+GLint reject(GLint code1, GLint code2) {
+return code1 & code2;
+}
+
+GLint encode(Point p1, Point win_min, Point win_max) {
+GLint code = 0x00;
+//determine if it’s between the window
+if (p1.x < win_min.x) code |= WIN_LEFT_BIT;
+if (p1.x > win_max.x) code |= WIN_RIGHT_BIT;
+if (p1.y < win_min.y) code |= WIN_BOTTOM_BIT;
+if (p1.y > win_max.y) code |= WIN_TOP_BIT;
+return code;
+}
+
+GLint round(GLfloat a) {
+return (GLint) (a + 0.5f);
+}
+//clipping the line if it’s outside the window by iteration every point
+void line_clip(Point p1, Point p2, Point win_min, Point win_max) {
+
+
+GLint code1, code2;
+GLint done = 0, plot_line = 0;
+GLfloat m = 0;
+if (p1.x != p2.x) {
+m = (p2.y - p1.y) / (p2.x - p1.x);
+}
+//plotting the window’s minimum and maximum
+while (!done) {
+code1 = encode(p1, win_min, win_max);
+code2 = encode(p2, win_min, win_max);
+if (accept(code1, code2)) {
+done = 1;
+plot_line = 1;
+} else if (reject(code1, code2)) {
+done = 1;
+} else {
+if (inside(code1)) {
+swap_points(&p1, &p2);
+swap_codes(&code1, &code2);
+}
+
+//checking the bit whether it’s right or left or bottom or top of the
+if (code1 & WIN_LEFT_BIT) {
+p1.y += (win_min.x - p1.x) * m;
+p1.x = win_min.x;
+
+
+
+} else if (code1 & WIN_RIGHT_BIT) {
+p1.y += (win_max.x - p1.x) * m;
+p1.x = win_max.x;
+} else if (code1 & WIN_BOTTOM_BIT) {
+if (p1.x != p2.x)
+p1.x += (win_min.y - p1.y) / m;
+p1.y = win_min.y;
+} else if (code1 & WIN_TOP_BIT) {
+if (p1.x != p2.x)
+p1.x += (win_max.y - p1.y) / m;
+p1.y = win_max.y;
+}
+}
+}
+//plotting the line between the points
+if (plot_line) {
+glColor3f(1, 1, 0);
+glLineWidth(2);
+glBegin(GL_LINES);
+glVertex2i(round(p1.x), round(p1.y));
+glVertex2i(round(p2.x), round(p2.y));
+glEnd();
+glFlush();
+}
+}
+
+//Drawing the window by user’s prompt value
+void draw_window(Point win_min, Point win_max) {
+
+glColor3f(1, 0, 1);
+glBegin(GL_LINE_LOOP);
+glVertex2i(round(win_min.x), round(win_min.y));
+glVertex2i(round(win_min.x), round(win_max.y));
+glVertex2i(round(win_max.x), round(win_max.y));
+glVertex2i(round(win_max.x), round(win_min.y));
+glEnd();
+glFlush();
+}
+//clipping the line in respect to window
+void init_clip() {
+glClear(GL_COLOR_BUFFER_BIT);
+
+Point win_min = {win1.x, win1.y};
+Point win_max = {win2.x, win2.y};
+draw_window(win_min, win_max);
+Point p1 = {line1.x, line1.y};
+Point p2 = {line2.x, line2.y};
+glColor3f(0, 1, 1);
+glBegin(GL_LINES);
+glVertex2i(round(p1.x), round(p1.y));
+glVertex2i(round(p2.x), round(p2.y));
+
+glEnd();
+line_clip(p1, p2, win_min, win_max);
+}
+//prompting for user input
+int main(int argc, char **argv) {
+init_graph(argc, argv);
+
+printf("Please enter lower corner of window:\n");
+scanf("%f %f",&win1.x, &win1.y);
+printf("Please enter upper corner of window:\n");
+scanf("%f %f",&win2.x, &win2.y);
+
+printf("Please enter first point of line:\n");
+scanf("%f %f",&line1.x, &line1.y);
+printf("Please enter second point of line:\n");
+scanf("%f %f",&line2.x, &line2.y);
+
+glutDisplayFunc(init_clip);
+close_graph();
+return EXIT_SUCCESS;
+}
